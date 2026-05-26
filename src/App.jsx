@@ -1,6 +1,6 @@
 
-import { useEffect, useState } from 'react'
-import { ClipboardList, BarChart3, Shield, X } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { ClipboardList, BarChart3, Shield, X, CalendarDays } from 'lucide-react'
 
 const SERVICE_TYPES = [
   '上門/外出接觸及探訪',
@@ -12,6 +12,17 @@ const SERVICE_TYPES = [
   '督導會議(樂齡之友會議)',
   '協助治療小組'
 ]
+
+function getMonthKey(dateString) {
+  if (!dateString) return '未有日期'
+  return dateString.slice(0, 7)
+}
+
+function formatMonthTitle(monthKey) {
+  if (!monthKey || monthKey === '未有日期') return '未有日期'
+  const [year, month] = monthKey.split('-')
+  return `${year}年${Number(month)}月`
+}
 
 export default function App() {
   const [user, setUser] = useState(
@@ -25,6 +36,7 @@ export default function App() {
   )
 
   const [editingRecord, setEditingRecord] = useState(null)
+  const [selectedMonth, setSelectedMonth] = useState(null)
 
   const [form, setForm] = useState({
     serviceDate: '',
@@ -49,11 +61,7 @@ export default function App() {
 
       if (end > start) {
         const diff = (end - start) / 1000 / 60 / 60
-
-        setForm(prev => ({
-          ...prev,
-          hours: diff.toFixed(1)
-        }))
+        setForm(prev => ({ ...prev, hours: diff.toFixed(1) }))
       }
     }
   }, [form.startTime, form.endTime])
@@ -65,14 +73,43 @@ export default function App() {
 
       if (end > start) {
         const diff = (end - start) / 1000 / 60 / 60
-
-        setEditingRecord(prev => ({
-          ...prev,
-          hours: diff.toFixed(1)
-        }))
+        setEditingRecord(prev => ({ ...prev, hours: diff.toFixed(1) }))
       }
     }
   }, [editingRecord?.startTime, editingRecord?.endTime])
+
+  const monthlyStats = useMemo(() => {
+    const map = {}
+
+    records.forEach(record => {
+      const key = getMonthKey(record.serviceDate)
+
+      if (!map[key]) {
+        map[key] = {
+          monthKey: key,
+          totalHours: 0,
+          count: 0,
+          confirmed: 0,
+          unconfirmed: 0,
+          records: []
+        }
+      }
+
+      map[key].totalHours += Number(record.hours || 0)
+      map[key].count += 1
+      map[key].confirmed += record.confirmed ? 1 : 0
+      map[key].unconfirmed += record.confirmed ? 0 : 1
+      map[key].records.push(record)
+    })
+
+    return Object.values(map).sort((a, b) => {
+      if (a.monthKey === '未有日期') return 1
+      if (b.monthKey === '未有日期') return -1
+      return b.monthKey.localeCompare(a.monthKey)
+    })
+  }, [records])
+
+  const selectedMonthData = monthlyStats.find(m => m.monthKey === selectedMonth)
 
   if (!user) {
     return (
@@ -123,10 +160,7 @@ export default function App() {
 
     setRecords(records.map(r =>
       r.id === editingRecord.id
-        ? {
-            ...editingRecord,
-            updatedAt: new Date().toISOString()
-          }
+        ? { ...editingRecord, updatedAt: new Date().toISOString() }
         : r
     ))
 
@@ -146,6 +180,9 @@ export default function App() {
     (sum, item) => sum + Number(item.hours || 0),
     0
   )
+
+  const confirmedCount = records.filter(r => r.confirmed).length
+  const unconfirmedCount = records.length - confirmedCount
 
   return (
     <div className="min-h-screen bg-slate-100 pb-28">
@@ -182,35 +219,20 @@ export default function App() {
               type="date"
               className="w-full border rounded-2xl p-3 mb-3"
               value={form.serviceDate}
-              onChange={(e) =>
-                setForm({
-                  ...form,
-                  serviceDate: e.target.value
-                })
-              }
+              onChange={(e) => setForm({ ...form, serviceDate: e.target.value })}
             />
 
             <input
               placeholder="服務名稱"
               className="w-full border rounded-2xl p-3 mb-3"
               value={form.serviceName}
-              onChange={(e) =>
-                setForm({
-                  ...form,
-                  serviceName: e.target.value
-                })
-              }
+              onChange={(e) => setForm({ ...form, serviceName: e.target.value })}
             />
 
             <select
               className="w-full border rounded-2xl p-3 mb-3"
               value={form.serviceType}
-              onChange={(e) =>
-                setForm({
-                  ...form,
-                  serviceType: e.target.value
-                })
-              }
+              onChange={(e) => setForm({ ...form, serviceType: e.target.value })}
             >
               {SERVICE_TYPES.map(type => (
                 <option key={type}>{type}</option>
@@ -226,12 +248,7 @@ export default function App() {
                   type="time"
                   className="w-full border rounded-2xl p-3"
                   value={form.startTime}
-                  onChange={(e) =>
-                    setForm({
-                      ...form,
-                      startTime: e.target.value
-                    })
-                  }
+                  onChange={(e) => setForm({ ...form, startTime: e.target.value })}
                 />
               </div>
 
@@ -243,12 +260,7 @@ export default function App() {
                   type="time"
                   className="w-full border rounded-2xl p-3"
                   value={form.endTime}
-                  onChange={(e) =>
-                    setForm({
-                      ...form,
-                      endTime: e.target.value
-                    })
-                  }
+                  onChange={(e) => setForm({ ...form, endTime: e.target.value })}
                 />
               </div>
             </div>
@@ -257,48 +269,28 @@ export default function App() {
               placeholder="服務時數"
               className="w-full border rounded-2xl p-3 mb-3"
               value={form.hours}
-              onChange={(e) =>
-                setForm({
-                  ...form,
-                  hours: e.target.value
-                })
-              }
+              onChange={(e) => setForm({ ...form, hours: e.target.value })}
             />
 
             <input
               placeholder="服務對象"
               className="w-full border rounded-2xl p-3 mb-3"
               value={form.serviceTarget}
-              onChange={(e) =>
-                setForm({
-                  ...form,
-                  serviceTarget: e.target.value
-                })
-              }
+              onChange={(e) => setForm({ ...form, serviceTarget: e.target.value })}
             />
 
             <textarea
               placeholder="備註"
               className="w-full border rounded-2xl p-3 mb-3"
               value={form.remark}
-              onChange={(e) =>
-                setForm({
-                  ...form,
-                  remark: e.target.value
-                })
-              }
+              onChange={(e) => setForm({ ...form, remark: e.target.value })}
             />
 
             <label className="flex items-center gap-2 mb-4">
               <input
                 type="checkbox"
                 checked={form.confirmed}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    confirmed: e.target.checked
-                  })
-                }
+                onChange={(e) => setForm({ ...form, confirmed: e.target.checked })}
               />
               已完成客戶確認
             </label>
@@ -319,65 +311,93 @@ export default function App() {
             )}
 
             {records.map(record => (
-              <div
+              <RecordCard
                 key={record.id}
+                record={record}
                 onClick={() => setEditingRecord({ ...record })}
-                className={`bg-white rounded-3xl p-4 shadow border-l-8 cursor-pointer active:scale-[0.99] transition ${
-                  record.confirmed
-                    ? 'border-green-500'
-                    : 'border-yellow-400'
-                }`}
-              >
-                <div className="flex justify-between gap-3">
-                  <div>
-                    <h3 className="font-bold">
-                      {record.serviceName}
-                    </h3>
-
-                    <p className="text-sm text-slate-500">
-                      {record.serviceType}
-                    </p>
-                  </div>
-
-                  <div className="text-right shrink-0">
-                    <p className="text-3xl font-bold text-emerald-600">
-                      + {record.hours}
-                    </p>
-
-                    <p className="text-xs text-slate-500">
-                      小時
-                    </p>
-                  </div>
-                </div>
-
-                <div className="mt-3 text-sm text-slate-600 space-y-1">
-                  <p>日期：{record.serviceDate}</p>
-                  <p>時間：{record.startTime || '--'} - {record.endTime || '--'}</p>
-                  <p>對象：{record.serviceTarget}</p>
-                  <p>備註：{record.remark}</p>
-                </div>
-              </div>
+              />
             ))}
           </div>
         </main>
       )}
 
       {tab === 'stats' && (
-        <div className="p-4">
+        <main className="p-4 space-y-4">
           <div className="bg-gradient-to-br from-slate-900 to-slate-700 text-white rounded-3xl p-6 shadow-xl">
             <p className="text-sm opacity-70">
               年度總服務時數
             </p>
 
             <h2 className="text-5xl font-bold mt-2">
-              {totalHours}
+              {totalHours.toFixed(1)}
             </h2>
 
-            <p className="mt-2">
-              服務次數：{records.length}
-            </p>
+            <div className="grid grid-cols-3 gap-3 mt-5 text-center">
+              <div className="bg-white/10 rounded-2xl p-3">
+                <p className="text-2xl font-bold">{records.length}</p>
+                <p className="text-xs opacity-80">服務次數</p>
+              </div>
+              <div className="bg-white/10 rounded-2xl p-3">
+                <p className="text-2xl font-bold">{confirmedCount}</p>
+                <p className="text-xs opacity-80">已確認</p>
+              </div>
+              <div className="bg-white/10 rounded-2xl p-3">
+                <p className="text-2xl font-bold">{unconfirmedCount}</p>
+                <p className="text-xs opacity-80">未確認</p>
+              </div>
+            </div>
           </div>
-        </div>
+
+          <section>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-xl font-bold">
+                每月服務時數
+              </h2>
+              <p className="text-sm text-slate-500">
+                點擊月份查看紀錄
+              </p>
+            </div>
+
+            {monthlyStats.length === 0 && (
+              <div className="bg-white rounded-3xl p-8 text-center text-slate-500 shadow">
+                暫時未有月份紀錄
+              </div>
+            )}
+
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              {monthlyStats.map(month => (
+                <button
+                  key={month.monthKey}
+                  onClick={() => setSelectedMonth(month.monthKey)}
+                  className="bg-white rounded-3xl p-4 shadow text-left active:scale-[0.98] transition border border-slate-100"
+                >
+                  <div className="flex items-center gap-2 text-slate-500 text-sm mb-2">
+                    <CalendarDays size={16} />
+                    {formatMonthTitle(month.monthKey)}
+                  </div>
+
+                  <p className="text-3xl font-bold text-slate-900">
+                    {month.totalHours.toFixed(1)}
+                  </p>
+
+                  <p className="text-xs text-slate-500 mt-1">
+                    小時｜{month.count} 次服務
+                  </p>
+
+                  <div className="flex gap-2 mt-3">
+                    <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">
+                      已確認 {month.confirmed}
+                    </span>
+
+                    <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-1 rounded-full">
+                      未確認 {month.unconfirmed}
+                    </span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </section>
+        </main>
       )}
 
       {tab === 'admin' && (
@@ -386,6 +406,46 @@ export default function App() {
             <h2 className="font-bold text-xl">
               管理員頁面
             </h2>
+          </div>
+        </div>
+      )}
+
+      {selectedMonthData && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-end md:items-center justify-center p-4">
+          <div className="bg-[#f6f3eb] rounded-t-[32px] md:rounded-[32px] w-full max-w-2xl p-5 max-h-[88vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-5">
+              <div>
+                <h2 className="text-2xl font-bold">
+                  {formatMonthTitle(selectedMonthData.monthKey)}
+                </h2>
+                <p className="text-sm text-slate-500">
+                  共 {selectedMonthData.totalHours.toFixed(1)} 小時｜{selectedMonthData.count} 次服務
+                </p>
+              </div>
+
+              <button
+                className="w-12 h-12 rounded-full bg-slate-200 flex items-center justify-center"
+                onClick={() => setSelectedMonth(null)}
+              >
+                <X />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              {selectedMonthData.records
+                .slice()
+                .sort((a, b) => (b.serviceDate || '').localeCompare(a.serviceDate || ''))
+                .map(record => (
+                  <RecordCard
+                    key={record.id}
+                    record={record}
+                    onClick={() => {
+                      setSelectedMonth(null)
+                      setEditingRecord({ ...record })
+                    }}
+                  />
+                ))}
+            </div>
           </div>
         </div>
       )}
@@ -415,12 +475,7 @@ export default function App() {
                   type="date"
                   className="w-full border rounded-2xl p-4 bg-white"
                   value={editingRecord.serviceDate || ''}
-                  onChange={(e) =>
-                    setEditingRecord({
-                      ...editingRecord,
-                      serviceDate: e.target.value
-                    })
-                  }
+                  onChange={(e) => setEditingRecord({ ...editingRecord, serviceDate: e.target.value })}
                 />
               </div>
 
@@ -431,12 +486,7 @@ export default function App() {
                 <input
                   className="w-full border rounded-2xl p-4 bg-white"
                   value={editingRecord.serviceName || ''}
-                  onChange={(e) =>
-                    setEditingRecord({
-                      ...editingRecord,
-                      serviceName: e.target.value
-                    })
-                  }
+                  onChange={(e) => setEditingRecord({ ...editingRecord, serviceName: e.target.value })}
                   placeholder="服務名稱"
                 />
               </div>
@@ -448,12 +498,7 @@ export default function App() {
                 <select
                   className="w-full border rounded-2xl p-4 bg-white"
                   value={editingRecord.serviceType || SERVICE_TYPES[0]}
-                  onChange={(e) =>
-                    setEditingRecord({
-                      ...editingRecord,
-                      serviceType: e.target.value
-                    })
-                  }
+                  onChange={(e) => setEditingRecord({ ...editingRecord, serviceType: e.target.value })}
                 >
                   {SERVICE_TYPES.map(type => (
                     <option key={type}>
@@ -472,12 +517,7 @@ export default function App() {
                     type="time"
                     className="w-full border rounded-2xl p-4 bg-white"
                     value={editingRecord.startTime || ''}
-                    onChange={(e) =>
-                      setEditingRecord({
-                        ...editingRecord,
-                        startTime: e.target.value
-                      })
-                    }
+                    onChange={(e) => setEditingRecord({ ...editingRecord, startTime: e.target.value })}
                   />
                 </div>
 
@@ -489,12 +529,7 @@ export default function App() {
                     type="time"
                     className="w-full border rounded-2xl p-4 bg-white"
                     value={editingRecord.endTime || ''}
-                    onChange={(e) =>
-                      setEditingRecord({
-                        ...editingRecord,
-                        endTime: e.target.value
-                      })
-                    }
+                    onChange={(e) => setEditingRecord({ ...editingRecord, endTime: e.target.value })}
                   />
                 </div>
               </div>
@@ -506,12 +541,7 @@ export default function App() {
                 <input
                   className="w-full border rounded-2xl p-4 bg-white"
                   value={editingRecord.hours || ''}
-                  onChange={(e) =>
-                    setEditingRecord({
-                      ...editingRecord,
-                      hours: e.target.value
-                    })
-                  }
+                  onChange={(e) => setEditingRecord({ ...editingRecord, hours: e.target.value })}
                   placeholder="服務時數"
                 />
               </div>
@@ -523,12 +553,7 @@ export default function App() {
                 <input
                   className="w-full border rounded-2xl p-4 bg-white"
                   value={editingRecord.serviceTarget || ''}
-                  onChange={(e) =>
-                    setEditingRecord({
-                      ...editingRecord,
-                      serviceTarget: e.target.value
-                    })
-                  }
+                  onChange={(e) => setEditingRecord({ ...editingRecord, serviceTarget: e.target.value })}
                   placeholder="服務對象"
                 />
               </div>
@@ -540,12 +565,7 @@ export default function App() {
                 <textarea
                   className="w-full border rounded-2xl p-4 bg-white min-h-[100px]"
                   value={editingRecord.remark || ''}
-                  onChange={(e) =>
-                    setEditingRecord({
-                      ...editingRecord,
-                      remark: e.target.value
-                    })
-                  }
+                  onChange={(e) => setEditingRecord({ ...editingRecord, remark: e.target.value })}
                   placeholder="備註"
                 />
               </div>
@@ -559,12 +579,7 @@ export default function App() {
                   type="checkbox"
                   className="w-5 h-5"
                   checked={!!editingRecord.confirmed}
-                  onChange={(e) =>
-                    setEditingRecord({
-                      ...editingRecord,
-                      confirmed: e.target.checked
-                    })
-                  }
+                  onChange={(e) => setEditingRecord({ ...editingRecord, confirmed: e.target.checked })}
                 />
               </label>
 
@@ -612,6 +627,48 @@ export default function App() {
   )
 }
 
+function RecordCard({ record, onClick }) {
+  return (
+    <div
+      onClick={onClick}
+      className={`bg-white rounded-3xl p-4 shadow border-l-8 cursor-pointer active:scale-[0.99] transition ${
+        record.confirmed
+          ? 'border-green-500'
+          : 'border-yellow-400'
+      }`}
+    >
+      <div className="flex justify-between gap-3">
+        <div>
+          <h3 className="font-bold">
+            {record.serviceName}
+          </h3>
+
+          <p className="text-sm text-slate-500">
+            {record.serviceType}
+          </p>
+        </div>
+
+        <div className="text-right shrink-0">
+          <p className="text-3xl font-bold text-emerald-600">
+            + {record.hours}
+          </p>
+
+          <p className="text-xs text-slate-500">
+            小時
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-3 text-sm text-slate-600 space-y-1">
+        <p>日期：{record.serviceDate}</p>
+        <p>時間：{record.startTime || '--'} - {record.endTime || '--'}</p>
+        <p>對象：{record.serviceTarget}</p>
+        <p>備註：{record.remark}</p>
+      </div>
+    </div>
+  )
+}
+
 function LoginPage({ onLogin }) {
   const [volunteerNo, setVolunteerNo] = useState('')
   const [chineseName, setChineseName] = useState('')
@@ -643,12 +700,7 @@ function LoginPage({ onLogin }) {
 
         <button
           className="w-full bg-slate-900 text-white py-4 rounded-2xl font-bold"
-          onClick={() =>
-            onLogin({
-              volunteerNo,
-              chineseName
-            })
-          }
+          onClick={() => onLogin({ volunteerNo, chineseName })}
         >
           開始記錄
         </button>
