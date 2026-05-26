@@ -1,8 +1,8 @@
 
 import { useEffect, useState } from 'react'
-import { BarChart3, ClipboardList, Shield } from 'lucide-react'
+import { ClipboardList, BarChart3, Shield } from 'lucide-react'
 
-const TYPES = [
+const SERVICE_TYPES = [
   '上門/外出接觸及探訪',
   '電話聯絡/慰問',
   '陪同及協助參與小組',
@@ -14,20 +14,26 @@ const TYPES = [
 ]
 
 export default function App() {
-  const [user, setUser] = useState(JSON.parse(localStorage.getItem('currentVolunteer')) || null)
+  const [user, setUser] = useState(
+    JSON.parse(localStorage.getItem('currentVolunteer')) || null
+  )
+
   const [tab, setTab] = useState('input')
-  const [records, setRecords] = useState(JSON.parse(localStorage.getItem('serviceRecords')) || [])
+
+  const [records, setRecords] = useState(
+    JSON.parse(localStorage.getItem('serviceRecords')) || []
+  )
 
   const [form, setForm] = useState({
-    serviceDate:'',
-    serviceName:'',
-    serviceType:'上門/外出接觸及探訪',
-    startTime:'',
-    endTime:'',
-    hours:'',
-    serviceTarget:'',
-    remark:'',
-    confirmed:false
+    serviceDate: '',
+    serviceName: '',
+    serviceType: SERVICE_TYPES[0],
+    startTime: '',
+    endTime: '',
+    hours: '',
+    serviceTarget: '',
+    remark: '',
+    confirmed: false
   })
 
   useEffect(() => {
@@ -35,12 +41,13 @@ export default function App() {
   }, [records])
 
   useEffect(() => {
-    if(form.startTime && form.endTime){
+    if (form.startTime && form.endTime) {
       const start = new Date(`2000-01-01T${form.startTime}`)
       const end = new Date(`2000-01-01T${form.endTime}`)
 
-      if(end > start){
+      if (end > start) {
         const diff = (end - start) / 1000 / 60 / 60
+
         setForm(prev => ({
           ...prev,
           hours: diff.toFixed(1)
@@ -50,48 +57,97 @@ export default function App() {
   }, [form.startTime, form.endTime])
 
   if (!user) {
-    return <Login onLogin={(u)=> {
-      setUser(u)
-      localStorage.setItem('currentVolunteer', JSON.stringify(u))
-    }} />
+    return (
+      <LoginPage
+        onLogin={(u) => {
+          setUser(u)
+          localStorage.setItem('currentVolunteer', JSON.stringify(u))
+        }}
+      />
+    )
   }
 
-  const addRecord = () => {
-    const item = {
+  const saveRecord = () => {
+    if (!form.serviceDate || !form.serviceName) {
+      alert('請填寫服務日期及服務名稱')
+      return
+    }
+
+    const newRecord = {
       ...form,
       id: Date.now(),
       volunteerNo: user.volunteerNo,
       chineseName: user.chineseName
     }
 
-    setRecords([item, ...records])
+    setRecords([newRecord, ...records])
 
     setForm({
-      serviceDate:'',
-      serviceName:'',
-      serviceType:'上門/外出接觸及探訪',
-      startTime:'',
-      endTime:'',
-      hours:'',
-      serviceTarget:'',
-      remark:'',
-      confirmed:false
+      serviceDate: '',
+      serviceName: '',
+      serviceType: SERVICE_TYPES[0],
+      startTime: '',
+      endTime: '',
+      hours: '',
+      serviceTarget: '',
+      remark: '',
+      confirmed: false
     })
   }
 
-  const totalHours = records.reduce((a,b)=>a+Number(b.hours || 0),0)
+  const updateRecord = (id) => {
+    const target = records.find(r => r.id === id)
+
+    const serviceName = prompt('修改服務名稱', target.serviceName)
+    if (serviceName === null) return
+
+    const hours = prompt('修改服務時數', target.hours)
+    if (hours === null) return
+
+    const remark = prompt('修改備註', target.remark)
+    if (remark === null) return
+
+    setRecords(records.map(r =>
+      r.id === id
+        ? {
+            ...r,
+            serviceName,
+            hours,
+            remark
+          }
+        : r
+    ))
+  }
+
+  const deleteRecord = (id) => {
+    const confirmDelete = confirm('確定刪除此服務紀錄？')
+
+    if (confirmDelete) {
+      setRecords(records.filter(r => r.id !== id))
+    }
+  }
+
+  const totalHours = records.reduce(
+    (sum, item) => sum + Number(item.hours || 0),
+    0
+  )
 
   return (
-    <div className="min-h-screen bg-slate-100 pb-24">
-      <header className="sticky top-0 bg-white/80 backdrop-blur border-b p-4 flex justify-between">
+    <div className="min-h-screen bg-slate-100 pb-28">
+      <header className="sticky top-0 z-50 bg-white/80 backdrop-blur border-b p-4 flex justify-between items-center">
         <div>
-          <h1 className="font-bold">Joyage Volunteer Service Management System</h1>
-          <p className="text-xs text-slate-500">{user.chineseName}</p>
+          <h1 className="font-bold text-lg">
+            Joyage Volunteer Service Management System
+          </h1>
+
+          <p className="text-xs text-slate-500">
+            {user.chineseName}
+          </p>
         </div>
 
         <button
-          className="text-sm bg-red-500 text-white px-3 py-1 rounded-xl"
-          onClick={()=>{
+          className="bg-red-500 text-white px-3 py-2 rounded-xl text-sm"
+          onClick={() => {
             localStorage.removeItem('currentVolunteer')
             setUser(null)
           }}
@@ -103,119 +159,207 @@ export default function App() {
       {tab === 'input' && (
         <main className="p-4 space-y-4">
           <div className="bg-white rounded-3xl p-4 shadow">
-            <h2 className="font-bold mb-3">新增服務紀錄</h2>
+            <h2 className="font-bold text-lg mb-4">
+              新增服務紀錄
+            </h2>
 
             <input
-              className="w-full border rounded-xl p-3 mb-3"
               type="date"
+              className="w-full border rounded-2xl p-3 mb-3"
               value={form.serviceDate}
-              onChange={(e)=>setForm({...form, serviceDate:e.target.value})}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  serviceDate: e.target.value
+                })
+              }
             />
 
             <input
-              className="w-full border rounded-xl p-3 mb-3"
               placeholder="服務名稱"
+              className="w-full border rounded-2xl p-3 mb-3"
               value={form.serviceName}
-              onChange={(e)=>setForm({...form, serviceName:e.target.value})}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  serviceName: e.target.value
+                })
+              }
             />
 
             <select
-              className="w-full border rounded-xl p-3 mb-3"
+              className="w-full border rounded-2xl p-3 mb-3"
               value={form.serviceType}
-              onChange={(e)=>setForm({...form, serviceType:e.target.value})}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  serviceType: e.target.value
+                })
+              }
             >
-              {TYPES.map(t => (
-                <option key={t}>{t}</option>
+              {SERVICE_TYPES.map(type => (
+                <option key={type}>
+                  {type}
+                </option>
               ))}
             </select>
 
             <div className="grid grid-cols-2 gap-3 mb-3">
               <div>
-                <label className="text-sm text-slate-500">開始時間</label>
+                <label className="text-sm text-slate-500">
+                  開始時間
+                </label>
+
                 <input
-                  className="w-full border rounded-xl p-3"
                   type="time"
+                  className="w-full border rounded-2xl p-3"
                   value={form.startTime}
-                  onChange={(e)=>setForm({...form, startTime:e.target.value})}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      startTime: e.target.value
+                    })
+                  }
                 />
               </div>
 
               <div>
-                <label className="text-sm text-slate-500">結束時間</label>
+                <label className="text-sm text-slate-500">
+                  結束時間
+                </label>
+
                 <input
-                  className="w-full border rounded-xl p-3"
                   type="time"
+                  className="w-full border rounded-2xl p-3"
                   value={form.endTime}
-                  onChange={(e)=>setForm({...form, endTime:e.target.value})}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      endTime: e.target.value
+                    })
+                  }
                 />
               </div>
             </div>
 
             <input
-              className="w-full border rounded-xl p-3 mb-3"
               placeholder="服務時數"
+              className="w-full border rounded-2xl p-3 mb-3"
               value={form.hours}
-              onChange={(e)=>setForm({...form, hours:e.target.value})}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  hours: e.target.value
+                })
+              }
             />
 
             <input
-              className="w-full border rounded-xl p-3 mb-3"
               placeholder="服務對象"
+              className="w-full border rounded-2xl p-3 mb-3"
               value={form.serviceTarget}
-              onChange={(e)=>setForm({...form, serviceTarget:e.target.value})}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  serviceTarget: e.target.value
+                })
+              }
             />
 
             <textarea
-              className="w-full border rounded-xl p-3 mb-3"
               placeholder="備註"
+              className="w-full border rounded-2xl p-3 mb-3"
               value={form.remark}
-              onChange={(e)=>setForm({...form, remark:e.target.value})}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  remark: e.target.value
+                })
+              }
             />
 
             <label className="flex items-center gap-2 mb-4">
               <input
                 type="checkbox"
                 checked={form.confirmed}
-                onChange={(e)=>setForm({...form, confirmed:e.target.checked})}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    confirmed: e.target.checked
+                  })
+                }
               />
+
               已完成客戶確認
             </label>
 
             <button
-              onClick={addRecord}
-              className="w-full bg-slate-900 text-white rounded-2xl py-3 font-bold"
+              onClick={saveRecord}
+              className="w-full bg-slate-900 text-white py-4 rounded-2xl font-bold"
             >
               儲存服務紀錄
             </button>
           </div>
 
-          <div className="space-y-3">
-            {records.map(r => (
+          <div className="space-y-4">
+            {records.map(record => (
               <div
-                key={r.id}
-                className={`rounded-3xl p-4 shadow bg-white border-l-8 ${
-                  r.confirmed ? 'border-green-500' : 'border-yellow-400'
+                key={record.id}
+                className={`bg-white rounded-3xl p-4 shadow border-l-8 ${
+                  record.confirmed
+                    ? 'border-green-500'
+                    : 'border-yellow-400'
                 }`}
               >
                 <div className="flex justify-between">
                   <div>
-                    <p className="font-bold">{r.serviceName}</p>
-                    <p className="text-sm text-slate-500">{r.serviceType}</p>
+                    <h3 className="font-bold">
+                      {record.serviceName}
+                    </h3>
+
+                    <p className="text-sm text-slate-500">
+                      {record.serviceType}
+                    </p>
                   </div>
 
                   <div className="text-right">
-                    <p className="text-2xl font-bold text-emerald-600">
-                      + {r.hours}
+                    <p className="text-3xl font-bold text-emerald-600">
+                      + {record.hours}
                     </p>
-                    <p className="text-xs">小時</p>
+
+                    <p className="text-xs text-slate-500">
+                      小時
+                    </p>
                   </div>
                 </div>
 
-                <div className="mt-3 text-sm text-slate-600">
-                  <p>日期：{r.serviceDate}</p>
-                  <p>時間：{r.startTime} - {r.endTime}</p>
-                  <p>對象：{r.serviceTarget}</p>
-                  <p>備註：{r.remark}</p>
+                <div className="mt-3 text-sm text-slate-600 space-y-1">
+                  <p>日期：{record.serviceDate}</p>
+
+                  <p>
+                    時間：
+                    {record.startTime} - {record.endTime}
+                  </p>
+
+                  <p>對象：{record.serviceTarget}</p>
+
+                  <p>備註：{record.remark}</p>
+                </div>
+
+                <div className="flex gap-3 mt-4">
+                  <button
+                    onClick={() => updateRecord(record.id)}
+                    className="flex-1 bg-slate-900 text-white py-3 rounded-2xl"
+                  >
+                    更改
+                  </button>
+
+                  <button
+                    onClick={() => deleteRecord(record.id)}
+                    className="flex-1 bg-red-500 text-white py-3 rounded-2xl"
+                  >
+                    刪除
+                  </button>
                 </div>
               </div>
             ))}
@@ -226,9 +370,17 @@ export default function App() {
       {tab === 'stats' && (
         <div className="p-4">
           <div className="bg-gradient-to-br from-slate-900 to-slate-700 text-white rounded-3xl p-6 shadow-xl">
-            <p className="text-sm opacity-70">年度總服務時數</p>
-            <h2 className="text-5xl font-bold mt-2">{totalHours}</h2>
-            <p className="mt-2">服務次數：{records.length}</p>
+            <p className="text-sm opacity-70">
+              年度總服務時數
+            </p>
+
+            <h2 className="text-5xl font-bold mt-2">
+              {totalHours}
+            </h2>
+
+            <p className="mt-2">
+              服務次數：{records.length}
+            </p>
           </div>
         </div>
       )}
@@ -236,22 +388,36 @@ export default function App() {
       {tab === 'admin' && (
         <div className="p-4">
           <div className="bg-white rounded-3xl p-6 shadow">
-            <h2 className="font-bold text-xl mb-2">管理員頁面</h2>
-            <p className="text-slate-500">管理義工資料及服務紀錄</p>
+            <h2 className="font-bold text-xl mb-2">
+              管理員頁面
+            </h2>
+
+            <p className="text-slate-500">
+              義工檔案管理功能
+            </p>
           </div>
         </div>
       )}
 
-      <nav className="fixed bottom-4 left-1/2 -translate-x-1/2 w-[92%] max-w-md bg-white/80 backdrop-blur rounded-3xl shadow-lg border flex justify-around py-3">
-        <button onClick={()=>setTab('input')}>
+      <nav className="fixed bottom-4 left-1/2 -translate-x-1/2 w-[92%] max-w-md bg-white/80 backdrop-blur border shadow-xl rounded-3xl py-3 flex justify-around">
+        <button
+          onClick={() => setTab('input')}
+          className={tab === 'input' ? 'text-black' : 'text-slate-400'}
+        >
           <ClipboardList />
         </button>
 
-        <button onClick={()=>setTab('stats')}>
+        <button
+          onClick={() => setTab('stats')}
+          className={tab === 'stats' ? 'text-black' : 'text-slate-400'}
+        >
           <BarChart3 />
         </button>
 
-        <button onClick={()=>setTab('admin')}>
+        <button
+          onClick={() => setTab('admin')}
+          className={tab === 'admin' ? 'text-black' : 'text-slate-400'}
+        >
           <Shield />
         </button>
       </nav>
@@ -259,7 +425,7 @@ export default function App() {
   )
 }
 
-function Login({ onLogin }) {
+function LoginPage({ onLogin }) {
   const [volunteerNo, setVolunteerNo] = useState('')
   const [chineseName, setChineseName] = useState('')
 
@@ -278,19 +444,24 @@ function Login({ onLogin }) {
           className="w-full border rounded-2xl p-4 mb-4"
           placeholder="義工編號"
           value={volunteerNo}
-          onChange={(e)=>setVolunteerNo(e.target.value)}
+          onChange={(e) => setVolunteerNo(e.target.value)}
         />
 
         <input
           className="w-full border rounded-2xl p-4 mb-6"
           placeholder="中文姓名"
           value={chineseName}
-          onChange={(e)=>setChineseName(e.target.value)}
+          onChange={(e) => setChineseName(e.target.value)}
         />
 
         <button
-          className="w-full bg-slate-900 text-white rounded-2xl py-4 font-bold"
-          onClick={()=>onLogin({ volunteerNo, chineseName })}
+          className="w-full bg-slate-900 text-white py-4 rounded-2xl font-bold"
+          onClick={() =>
+            onLogin({
+              volunteerNo,
+              chineseName
+            })
+          }
         >
           開始記錄
         </button>
